@@ -1,9 +1,9 @@
-// 計画 1 つから、変更前・変更後・注釈つきを撮り、別々の画像ファイルとして出す。
-// ファイル名は名前順で 変更前 → 変更後 → 注釈つき になる: 01-<名前>-before.png、02-<名前>-after.png、03-<名前>-annotated.png
-// beforeNotes があるときは変更前の注釈つき（02-<名前>-before-annotated.png）が入り、後ろの番号が 1 つずつ下がる。
+// 撮影内容の JSON から、変更前・変更後・注釈つきのスクリーンショットを撮影し、別々の画像ファイルとして出力する。
+// ファイル名順に 変更前 → 変更後 → 注釈つき と並ぶ: 01-<名前>-before.png、02-<名前>-after.png、03-<名前>-annotated.png
+// beforeNotes がある場合は変更前の注釈つき（02-<名前>-before-annotated.png）が加わり、以降の番号が 1 つずつずれる。
 // 使い方: node run.mjs <plan.json> --before <変更前のURL> --after <変更後のURL> [--label <略称-番号>] [--out <dir>] [--only <名前の一部>...]
-// 出力先の既定は ~/Downloads/<label>/ 。label を省くと plan の name を使う。
-// 撮る前に、同じ画面の古い画像を消す。撮り直しても最新の 1 セットだけが残る。
+// 出力先のデフォルトは ~/Downloads/<label>/ 。label を省略すると plan の name を使う。
+// 撮影前に同じ画面の古い画像を削除する。撮り直してもフォルダには最新の 1 セットだけが残る。
 import { shoot, launch, storybookUrl } from './annotate-shot.mjs';
 import { readFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -49,12 +49,12 @@ for (const shot of plan.shots) {
   const base = [...steps, ...hover];
   const notes = shot.notes ?? [];
   const beforeNotes = shot.beforeNotes ?? [];
-  // 画面ごとに、出す画像へ 01 から連番を振る
+  // 画面ごとに、出力する画像へ 01 から連番を付ける
   const old = new RegExp(`^\\d{2}-${shot.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-(before|before-annotated|after|annotated)\\.png$`);
   for (const f of readdirSync(outDir)) if (old.test(f)) rmSync(join(outDir, f));
   let seq = 0;
   const f = k => join(outDir, `${String(++seq).padStart(2, '0')}-${shot.name}-${k}.png`);
-  // 変更後が別の story のときは afterStorybook / afterPath で上書きする
+  // 変更後が別の story の場合は afterStorybook / afterPath で上書きする
   const afterShot = { ...shot, storybook: shot.afterStorybook ?? shot.storybook, path: shot.afterPath ?? shot.path };
   await shoot(opts(shot, opt.before, f('before'), base));
   if (beforeNotes.length) await shoot(opts(shot, opt.before, f('before-annotated'), [...base, ...beforeNotes]));

@@ -1,11 +1,11 @@
-// 1 枚の画面を headless で撮る。notes の指定で要素を番号付きの赤い枠で囲む。
+// 1 画面を headless で撮影する。notes で指定した要素を番号付きの赤い枠で囲む。
 // CLI:
 //   node annotate-shot.mjs --url <URL> --out <out.png> [--notes notes.json] [--ready <selector>] ...
 //   node annotate-shot.mjs --storybook <port> <story-id> --out <out.png> [--notes notes.json]
-// オプション: --width --height --scale(既定 2) --full --ready <selector> --wait-ms <ms>
+// オプション: --width --height --scale(デフォルト 2) --full --ready <selector> --wait-ms <ms>
 //   --hide-css <css> --pre-click <selector>(複数可) --scroll-to <文字|__bottom__> --keep-focus
 // notes.json は [{ "steps": [...] }, { "hover": "セレクタ" }, { "n": 1, "css": "..." }, ...] の配列（枠の指定は README）。
-// 環境変数 PR_SHOTS_CHROMIUM に chromium の実行ファイルを渡すと、playwright の既定の代わりにそれで起動する。
+// 環境変数 PR_SHOTS_CHROMIUM に Chromium の実行ファイルのパスを指定すると、Playwright 標準のブラウザの代わりにそれを起動する。
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -34,7 +34,7 @@ export async function shoot(opts) {
     if (opts.ready) await page.locator(opts.ready).first().waitFor({ timeout: 120000 });
     if (opts.hideCss) await page.addStyleTag({ content: opts.hideCss });
     await page.waitForTimeout(opts.waitMs ?? 1200);
-    // 撮る前に押す要素（サイドバーの折りたたみなど）。暗幕が上にあっても押せるよう、要素を直接押す
+    // 撮影前にクリックする要素（サイドバーの折りたたみなど）。オーバーレイが重なっていてもクリックできるよう、要素の click() を直接呼ぶ
     for (const sel of opts.preClick ?? []) {
       const el = page.locator(sel);
       if (await el.count()) { await el.first().evaluate(e => e.click()); await page.waitForTimeout(500); }
@@ -55,7 +55,7 @@ export async function shoot(opts) {
       await page.waitForTimeout(500);
     }
     if (opts.full) {
-      // 縦にスクロールする要素のうち、はみ出しのいちばん大きいものが収まる高さまで窓を伸ばす
+      // 縦スクロールする要素のうち、はみ出しが最も大きいものが全部収まる高さまでビューポートを広げる
       const h = await page.evaluate(() => {
         let best = null, over = 0;
         for (const el of document.querySelectorAll('main, div')) {
@@ -70,7 +70,7 @@ export async function shoot(opts) {
       await page.waitForTimeout(500);
     }
     await page.mouse.move(W - 4, 4);
-    // hover で出るもの（ツールチップなど）も枠で囲めるよう、枠を測る前に載せる
+    // hover で表示されるもの（ツールチップなど）も枠で囲めるよう、枠の位置を計算する前に hover する
     if (hover) { await page.locator(hover).first().hover(); await page.waitForTimeout(800); }
     if (!opts.keepFocus) await page.evaluate(() => document.activeElement?.blur());
     const boxes = [];
@@ -103,12 +103,12 @@ function union(a, b) {
   return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
 }
 
-// 1 つの指定から枠の矩形を求める。to があれば、その指定の矩形までを 1 つの枠にまとめる
+// 1 つの指定から枠の矩形を計算する。to がある場合は、その指定の矩形までを含めて 1 つの枠にする
 async function rectOf(page, n) {
   let rect = null;
   if (n.box) rect = { x: n.box[0], y: n.box[1], w: n.box[2], h: n.box[3] };
   else if (n.column) {
-    // 見出しの文字で表の列を探し、見出しから表の下端までを囲む
+    // 見出しのテキストで表の列を探し、見出しから表の下端までを囲む
     rect = await page.evaluate(([t, k]) => {
       const ths = [...document.querySelectorAll('th')].filter(th => th.textContent.trim() === t && th.getBoundingClientRect().width > 0);
       const th = ths[k ?? 0]; if (!th) return null;
@@ -122,8 +122,8 @@ async function rectOf(page, n) {
       const a = tr.getBoundingClientRect(); return { x: a.x, y: a.y, w: a.width, h: a.height };
     }, [n.row, n.nth]);
   } else if (n.css || n.text) {
-    // all: 当たった要素すべてを 1 つの枠で囲む。up: 当たった要素から n 段上の親を囲む
-    // 隠れた要素は数えず、見えている要素の中で nth 番目を取る
+    // all: 一致した要素すべてを 1 つの枠で囲む。up: 一致した要素の n 階層上の親要素を囲む
+    // 非表示の要素は数えず、表示されている要素の中で nth 番目を使う
     const base = n.css ? page.locator(n.css) : page.getByText(n.text, { exact: n.exact ?? false });
     const visible = [];
     for (const l of await base.all()) { const bb = await l.boundingBox().catch(() => null); if (bb && bb.width > 0) visible.push(l); }
@@ -184,7 +184,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     else if (k === '--keep-focus') o.keepFocus = true;
     else { console.error('不明な引数', k); process.exit(2); }
   }
-  if (!o.url || !o.out) { console.error('--url（または --storybook <port> <id>）と --out が要ります'); process.exit(2); }
+  if (!o.url || !o.out) { console.error('--url（または --storybook <port> <id>）と --out を指定してください'); process.exit(2); }
   if (notesFile) o.notes = JSON.parse(readFileSync(notesFile, 'utf8'));
   await shoot(o);
 }

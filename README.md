@@ -1,6 +1,6 @@
-# pr-shots（PR 用の画面写真）
+# pr-shots
 
-Claude Code 用のスキル。PR に貼る画面写真を、変更前・変更後・注釈つきの画像を別々のファイルで撮る道具です。headless の playwright だけを使い、ブラウザの窓は開きません。
+PR に貼るスクリーンショットを撮るための Claude Code スキルです。変更前・変更後・注釈つきの画像を、別々のファイルとして出力します。headless の Playwright を使うので、ブラウザのウィンドウは開きません。
 
 ## インストール
 
@@ -9,44 +9,50 @@ git clone https://github.com/kaigemap/claude-skill-pr-shots.git ~/.claude/skills
 cd ~/.claude/skills/pr-shots && npm install && npx playwright install chromium-headless-shell
 ```
 
-手元の chromium を使うときは、環境変数 `PR_SHOTS_CHROMIUM` に実行ファイルのパスを渡します。
+インストール済みの Chromium を使う場合は、環境変数 `PR_SHOTS_CHROMIUM` に実行ファイルのパスを指定してください。
 
 ## 使い方
 
-変更前（base）と変更後（PR）を別のポートで立て、URL を 2 つ渡します。出力先の既定は `~/Downloads/<label>/` です。
+変更前（base）と変更後（PR）のアプリを別々のポートで起動し、2 つの URL を指定します。出力先のデフォルトは `~/Downloads/<label>/` です。
 
 ```
 node ~/.claude/skills/pr-shots/run.mjs plan.json --before http://localhost:6071 --after http://localhost:6061 --label 12-list-filter
-node ~/.claude/skills/pr-shots/run.mjs plan.json --before ... --after ... --only detail   # 名前に一致する shot だけ
-node ~/.claude/skills/pr-shots/annotate-shot.mjs --url http://localhost:3000/list --out a.png --notes notes.json --full   # 1 枚だけ
+node ~/.claude/skills/pr-shots/run.mjs plan.json --before ... --after ... --only detail   # 名前が一致する shot だけ撮影
+node ~/.claude/skills/pr-shots/annotate-shot.mjs --url http://localhost:3000/list --out a.png --notes notes.json --full   # 1 枚だけ撮影
 ```
 
-出力は `<out>/` に画面ごと 3 枚で、名前順に 変更前 → 変更後 → 注釈つき と並びます。`01-<shot名>-before.png`、`02-<shot名>-after.png`（枠なし）、`03-<shot名>-annotated.png`（枠つき）。`beforeNotes` を書いた shot は、変更前の注釈つき `02-<shot名>-before-annotated.png` が入り、after と annotated は 03・04 になります。画像を 1 枚に結合はしません。撮る前に、同じ画面の古い画像（`NN-<shot名>-*.png`）を消すので、撮り直してもフォルダには最新の 1 セットだけが残ります。
+画面ごとに 3 枚の画像を出力し、ファイル名順に変更前 → 変更後 → 注釈つきの順で並びます。
 
-## 計画ファイル
+- `01-<shot名>-before.png`
+- `02-<shot名>-after.png`（枠なし）
+- `03-<shot名>-annotated.png`（枠あり）
+
+`beforeNotes` を指定した shot では、変更前に枠を描いた `02-<shot名>-before-annotated.png` が加わり、after と annotated は 03・04 になります。画像は 1 枚に結合しません。撮影の前に同じ画面の古い画像（`NN-<shot名>-*.png`）を削除するので、撮り直してもフォルダには最新の 1 セットだけが残ります。
+
+## 撮影内容の JSON
 
 `example-plan.json` を参照してください。
 
-- `defaults` と各 shot の共通項目: `width`、`height`、`scale`（既定 2）、`full`（はみ出しが収まるまで窓を伸ばす）、`ready`（待つセレクタ）、`hideCss`（撮る前に足す CSS）、`preClick`（撮る前に押す要素のセレクタ）、`scrollTo`、`waitMs`、`keepFocus`
-- shot ごと: `name`、`path`（URL の origin に続けるパス）または `storybook`（story id。`/iframe.html?id=...` に変換）、`steps`、`hover`、`notes`、`beforeNotes`、変更後だけ別の画面のときは `afterPath` / `afterStorybook`
-- 既定では何も隠さず、何も押さず、何も待ちません（storybook は story の描画を待ちます）
+- `defaults` と各 shot に共通の項目: `width`、`height`、`scale`（デフォルト 2）、`full`（スクロールする領域が全部収まるまでウィンドウの高さを広げる）、`ready`（表示を待つセレクタ）、`hideCss`（撮影前に追加する CSS）、`preClick`（撮影前にクリックする要素のセレクタ）、`scrollTo`、`waitMs`、`keepFocus`
+- shot ごとの項目: `name`、`path`（URL の origin の後ろに付けるパス）または `storybook`（story の ID。`/iframe.html?id=...` に変換されます）、`steps`、`hover`、`notes`、`beforeNotes`。変更後だけ別の画面を撮る場合は `afterPath` / `afterStorybook`
+- デフォルトでは、要素を隠す・クリックする・表示を待つといった処理は何もしません（Storybook の場合だけ、story の描画を待ちます）
 
 ## steps
 
-`click`（画面の文字、`exact` 既定 true）、`css`、`role` + `name`、`scroll`（文字、または `__bottom__`）、`fill: [placeholder, 値]`、`eval`（JS 式。結果を出力）。いずれも `nth` と `wait`（ms）を付けられます。
+`click`（画面上のテキスト。`exact` のデフォルトは true）、`css`、`role` + `name`、`scroll`（テキスト、または `__bottom__`）、`fill: [placeholder, 値]`、`eval`（JS の式。結果をコンソールに出力）。どれにも `nth` と `wait`（ミリ秒）を指定できます。
 
 ## 枠の指定（notes）
 
-どれも `n`（番号）が必須で、`pad`（既定 4px）と `to` を付けられます。
+どの指定も `n`（番号）が必須で、`pad`（デフォルト 4px）と `to` を追加で指定できます。
 
-- `css`: セレクタ。見えている要素のうち `nth` 番目（既定 0）
-- `text`: 画面の文字（`exact` で完全一致）。見えている要素だけ数えます
+- `css`: セレクタ。表示されている要素のうち `nth` 番目（デフォルト 0）
+- `text`: 画面上のテキスト（`exact` で完全一致）。表示されている要素だけを対象にします
 - `box`: `[x, y, 幅, 高さ]`
-- `column`: 表の見出し文字。見出しから表の下端までを囲みます
-- `row`: セルの文字。その行を囲みます
-- `up`: `css` / `text` に付け、当たった要素の n 段上の親を囲みます
-- `all`: `css` / `text` に付け、当たった要素すべてを 1 つの枠で囲みます
-- `to`: 別の指定（上のどれでもよい）までを含めて 1 つの枠にします
+- `column`: 表の見出しのテキスト。見出しから表の下端までを囲みます
+- `row`: セルのテキスト。その行を囲みます
+- `up`: `css` / `text` と一緒に指定し、一致した要素の n 階層上の親要素を囲みます
+- `all`: `css` / `text` と一緒に指定し、一致した要素すべてを 1 つの枠で囲みます
+- `to`: 別の指定（上のどれでも可）までを含めて 1 つの枠にします
 
 ## English
 
