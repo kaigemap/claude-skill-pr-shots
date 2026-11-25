@@ -1,0 +1,29 @@
+{
+  "name": "sample-1",
+  "defaults": {
+    "width": 1280,
+    "height": 800,
+    "full": true,
+    "ready": "main h1",
+    "hideCss": ".debug-badge { display: none !important; }",
+    "preClick": ["button[aria-label=\"Collapse sidebar\"]"]
+  },
+  "shots": [
+    {
+      "name": "detail",
+      "path": "/items/1",
+      "steps": [{ "scroll": "Comments" }],
+      "beforeNotes": [{ "n": 1, "text": "Memo", "exact": true }],
+      "notes": [
+        { "n": 1, "css": "label:has-text(\"Comments\")", "up": 2 },
+        { "n": 2, "text": "Due date", "exact": true, "up": 1 },
+        { "n": 3, "column": "Owner" },
+        { "n": 4, "row": "佐藤 健" },
+        { "n": 5, "css": ".badge", "all": true },
+        { "n": 6, "text": "Created", "to": { "text": "Memo" } },
+        { "n": 7, "box": [20, 20, 200, 48] }
+      ]
+    },
+    { "name": "list-page", "path": "/items", "width": 820, "height": 900, "notes": [{ "n": 1, "text": "渡辺 美咲" }] }
+  ]
+}
