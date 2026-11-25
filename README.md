@@ -2,7 +2,7 @@
 
 Claude Code 用のスキル。PR に貼る画面写真を、変更前・変更後・注釈つきの画像を別々のファイルで撮る道具です。headless の playwright だけを使い、ブラウザの窓は開きません。
 
-## 入れ方
+## インストール
 
 ```sh
 git clone https://github.com/kaigemap/claude-skill-pr-shots.git ~/.claude/skills/pr-shots
